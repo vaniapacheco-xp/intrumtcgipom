@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instrumento TCGI - UAN</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif}
+body{background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px}
+.container{max-width:800px;margin:0 auto;background:white;border-radius:15px;padding:30px;box-shadow:0 10px 40px rgba(0,0,0,0.3)}
+h1{text-align:center;color:#1e3c72;margin-bottom:10px}
+.subtitle{text-align:center;color:#666;margin-bottom:20px}
+.info{background:#e7f3ff;border-left:4px solid #2196F3;padding:15px;margin-bottom:20px;border-radius:5px}
+.tipo-prueba{display:flex;gap:15px;justify-content:center;margin-bottom:20px}
+.btn-tipo{padding:15px 30px;font-size:16px;font-weight:bold;border:3px solid #667eea;background:white;color:#667eea;border-radius:10px;cursor:pointer}
+.btn-tipo.active{background:#667eea;color:white}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;margin-bottom:8px;font-weight:bold}
+.form-group input{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:14px}
+.question{background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:15px;border-left:4px solid #667eea}
+.question-number{font-weight:bold;color:#667eea;margin-bottom:8px}
+.question-text{margin-bottom:10px}
+.option{display:block;padding:8px;margin:5px 0;background:white;border:2px solid #e0e0e0;border-radius:5px;cursor:pointer}
+.option:hover{border-color:#667eea;background:#f0f4ff}
+.option input{margin-right:8px}
+.btn-submit{width:100%;padding:15px;background:#667eea;color:white;border:none;border-radius:10px;font-size:18px;font-weight:bold;cursor:pointer;margin-top:20px}
+.btn-submit:disabled{opacity:0.6;cursor:not-allowed}
+.result{display:none;background:#d4edda;color:#155724;padding:25px;border-radius:10px;text-align:center;margin-top:20px}
+.score{font-size:48px;font-weight:bold;color:#28a745;margin:15px 0}
+.feedback{margin-top:20px;text-align:left}
+.feedback-item{padding:10px;margin:8px 0;border-radius:5px;border-left:4px solid}
+.correct{background:#d4edda;border-color:#28a745}
+.incorrect{background:#f8d7da;border-color:#dc3545}
+.pomodoro{background:#ff6b6b;color:white;padding:20px;border-radius:10px;margin-top:20px;text-align:center}
+.loading{display:none;text-align:center;padding:20px}
+.spinner{border:4px solid #f3f3f3;border-top:4px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.error-box{display:none;background:#f8d7da;color:#721c24;padding:15px;border-radius:10px;margin-top:15px;border-left:4px solid #dc3545}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Instrumento de Evaluación TCGI</h1>
+<p class="subtitle">Unidades 2 y 3 - Universidad Autónoma de Nayarit</p>
+<div class="info"><strong>Instrucciones:</strong> Seleccione el tipo de prueba, ingrese su correo institucional y responda las 20 preguntas.</div>
+
+<div class="form-group">
+<label>Seleccione el tipo de prueba:</label>
+<div class="tipo-prueba">
+<button type="button" class="btn-tipo" id="btnPre" onclick="selTipo('pre')">PRE-TEST</button>
+<button type="button" class="btn-tipo" id="btnPost" onclick="selTipo('post')">POST-TEST</button>
+</div>
+</div>
+
+<form id="testForm">
+<div class="form-group">
+<label>Correo institucional (@uan.edu.mx):</label>
+<input type="email" id="correo" required placeholder="ejemplo@uan.edu.mx">
+</div>
+<div id="preguntas"></div>
+
+<div class="loading" id="loading"><div class="spinner"></div><p style="margin-top:10px">Guardando en la base de datos...</p></div>
+<div class="error-box" id="errorBox"></div>
+<button type="submit" class="btn-submit" id="btnSubmit">Enviar Respuestas</button>
+
+<div class="result" id="resultPre">
+<h3>Pre-Test Completado</h3>
+<div class="score" id="scorePre"></div>
+<p id="textPre"></p>
+<p style="margin-top:15px">¡Gracias por tu participación!</p>
+</div>
+
+<div class="result" id="resultPost">
+<h3>Post-Test Completado</h3>
+<div class="score" id="scorePost"></div>
+<p id="textPost"></p>
+<div class="feedback" id="feedback"></div>
+<div class="pomodoro">
+<h4>¡Felicidades!</h4>
+<p>Tu desempeño refleja la mejora gracias a la <strong>Estrategia Pomodoro</strong>. Los periodos de 25 minutos con descansos de 5 minutos mejoran la retención.</p>
+</div>
+</div>
+</form>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig={apiKey:"AIzaSyAATrKZ7TPpwseR8X3g1SG99jVtDmiO134",authDomain:"instrumtcgipom.firebaseapp.com",projectId:"instrumtcgipom",storageBucket:"instrumtcgipom.firebasestorage.app",messagingSenderId:"817705977294",appId:"1:817705977294:web:f722e1bfce7008fd76579f"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+
+const preguntas=[
+{q:"¿Cuál es el primer paso en el proceso de búsqueda y recuperación de información?",a:"Evaluar los resultados encontrados",b:"Identificar y definir la necesidad de información",c:"Redactar el documento final",d:"Citar las fuentes utilizadas",r:"b"},
+{q:"Los operadores booleanos (AND, OR, NOT) se utilizan principalmente para:",a:"Citar fuentes bibliográficas",b:"Refinar y precisar las estrategias de búsqueda",c:"Evaluar la calidad de la información",d:"Crear bases de datos numéricas",r:"b"},
+{q:"¿Qué operador booleano se utiliza para obtener resultados que contengan AMBOS términos?",a:"OR",b:"NOT",c:"AND",d:"NEAR",r:"c"},
+{q:"Las bases de datos bibliográficas especializadas se caracterizan por:",a:"Contener información de todas las áreas",b:"Estar enfocadas en un área específica del conocimiento",c:"Solo almacenar datos numéricos",d:"No requerir suscripción",r:"b"},
+{q:"¿Cuál es una base de datos numérica?",a:"Scopus",b:"INEGI",c:"Web of Science",d:"EBSCO",r:"b"},
+{q:"¿Qué son los catálogos bibliotecarios en línea (OPAC)?",a:"Sistemas para gestionar referencias",b:"Herramientas para consultar el acervo de una biblioteca",c:"Buscadores académicos",d:"Plataformas de educación en línea",r:"b"},
+{q:"Las palabras clave en una estrategia de búsqueda deben ser:",a:"Oraciones completas",b:"Términos específicos y representativos del tema",c:"Palabras generales",d:"Únicamente en inglés",r:"b"},
+{q:"¿Cuál es la diferencia entre un buscador general y uno académico?",a:"Los académicos solo buscan imágenes",b:"Los académicos priorizan contenido científico revisado por pares",c:"No existe diferencia",d:"Los generales son más confiables",r:"b"},
+{q:"Una estrategia de búsqueda efectiva debe incluir:",a:"Solo una palabra clave",b:"Definición del tema, palabras clave, operadores y fuentes",c:"Únicamente comillas",d:"Buscar en una sola fuente",r:"b"},
+{q:"¿Qué tipo de base de datos es Scopus o Web of Science?",a:"Base de datos numérica",b:"Base de datos bibliográfica multidisciplinar",c:"Catálogo bibliotecario",d:"Buscador de imágenes",r:"b"},
+{q:"El operador booleano NOT se utiliza para:",a:"Incluir todos los términos",b:"Excluir un término específico de los resultados",c:"Buscar sinónimos",d:"Ordenar alfabéticamente",r:"b"},
+{q:"Google Scholar es un ejemplo de:",a:"Base de datos numérica",b:"Catálogo bibliotecario",c:"Buscador académico",d:"Gestor de referencias",r:"c"},
+{q:"¿Por qué es importante evaluar la información de Internet?",a:"Porque toda es falsa",b:"Porque no todo es confiable, preciso o actualizado",c:"Porque es requisito de los buscadores",d:"No es importante",r:"b"},
+{q:"¿Cuál es un criterio para evaluar la confiabilidad de una fuente?",a:"Cantidad de anuncios",b:"Autoridad del autor y respaldo institucional",c:"Diseño visual",d:"Velocidad de carga",r:"b"},
+{q:"La 'actualidad' como criterio se refiere a:",a:"Popular en redes sociales",b:"Información actualizada y vigente",c:"Muchos visitantes",d:"Fuente gratuita",r:"b"},
+{q:"¿Qué indica que una fuente tiene 'objetividad'?",a:"Presenta información imparcial basada en evidencias",b:"Tiene muchas imágenes",c:"Es un blog personal",d:"Texto extenso",r:"a"},
+{q:"El 'alcance o cobertura' se refiere a:",a:"Profundidad y amplitud del tema",b:"Número de países de acceso",c:"Cantidad de palabras",d:"Tamaño del archivo",r:"a"},
+{q:"¿Cuál NO es característica de una fuente confiable?",a:"Autor con credenciales",b:"Información con citas",c:"Ausencia de fecha y autor desconocido",d:"Revista con revisión por pares",r:"c"},
+{q:"La 'relevancia' se determina por:",a:"Relación directa con el tema",b:"Cantidad de veces en Google",c:"Primer resultado",d:"Idioma extranjero",r:"a"},
+{q:"Al evaluar una fuente académica, es importante verificar:",a:"Autoría, actualidad, objetividad, relevancia y respaldo",b:"Solo diseño web",c:"Solo que sea gratuito",d:"Muchos enlaces publicitarios",r:"a"}
+];
+
+let tipo=null;
+
+function selTipo(t){
+tipo=t;
+document.getElementById('btnPre').classList.remove('active');
+document.getElementById('btnPost').classList.remove('active');
+document.getElementById(t==='pre'?'btnPre':'btnPost').classList.add('active');
+}
+
+// Generar preguntas
+let html='';
+preguntas.forEach((p,i)=>{
+html+=`<div class="question"><div class="question-number">Pregunta ${i+1}</div><div class="question-text">${p.q}</div>`;
+['a','b','c','d'].forEach(op=>{
+html+=`<label class="option"><input type="radio" name="q${i+1}" value="${op}" required> ${op}) ${p[op]}</label>`;
+});
+html+='</div>';
+});
+document.getElementById('preguntas').innerHTML=html;
+
+document.getElementById('testForm').addEventListener('submit',async function(e){
+e.preventDefault();
+const errorBox=document.getElementById('errorBox');
+errorBox.style.display='none';
+
+if(!tipo){alert('Seleccione PRE-TEST o POST-TEST');return;}
+const correo=document.getElementById('correo').value;
+if(!correo.endsWith('@uan.edu.mx')){alert('Use un correo @uan.edu.mx');return;}
+
+let todas=true;
+for(let i=1;i<=20;i++){if(!document.querySelector(`input[name="q${i}"]:checked`)){todas=false;break;}}
+if(!todas){alert('Responda todas las preguntas');return;}
+
+let puntaje=0;const respuestas={};const detalle=[];
+for(let i=0;i<20;i++){
+const num=i+1;
+const resp=document.querySelector(`input[name="q${num}"]:checked`).value;
+respuestas[`q${num}`]=resp;
+const correcta=resp===preguntas[i].r;
+if(correcta)puntaje++;
+detalle.push({numero:num,pregunta:preguntas[i].q,respuestaUsuario:respuestas[`q${num}`],respuestaCorrecta:preguntas[i].r,esCorrecta:correcta});
+}
+const calificacion=(puntaje/20)*100;
+
+document.getElementById('loading').style.display='block';
+document.getElementById('btnSubmit').disabled=true;
+
+try{
+await db.collection('resultados_tcgi').add({
+tipoPrueba:tipo,correo:correo,respuestas:respuestas,detalle:detalle,
+puntaje:puntaje,totalPreguntas:20,calificacion:calificacion,
+fecha:new Date().toISOString()
+});
+
+document.getElementById('loading').style.display='none';
+document.getElementById('btnSubmit').style.display='none';
+
+if(tipo==='pre'){
+document.getElementById('resultPre').style.display='block';
+document.getElementById('scorePre').textContent=puntaje+'/20';
+document.getElementById('textPre').textContent='Calificación: '+calificacion.toFixed(2)+'%';
+}else{
+document.getElementById('resultPost').style.display='block';
+document.getElementById('scorePost').textContent=puntaje+'/20';
+document.getElementById('textPost').textContent='Calificación: '+calificacion.toFixed(2)+'%';
+let fb='';
+detalle.forEach(d=>{
+fb+=`<div class="feedback-item ${d.esCorrecta?'correct':'incorrect'}"><strong>P${d.numero}:</strong> ${d.esCorrecta?'✓ Correcta':'✗ Incorrecta'}<br>Tu respuesta: ${d.respuestaUsuario}${!d.esCorrecta?'<br>Correcta: '+d.respuestaCorrecta:''}</div>`;
+});
+document.getElementById('feedback').innerHTML=fb;
+}
+document.getElementById(tipo==='pre'?'resultPre':'resultPost').scrollIntoView({behavior:'smooth'});
+
+}catch(error){
+document.getElementById('loading').style.display='none';
+document.getElementById('btnSubmit').disabled=false;
+errorBox.style.display='block';
+errorBox.innerHTML='<strong>Error al guardar:</strong><br>'+error.message+'<br><br>Revisa que las reglas de Firestore permitan "create" en la colección "resultados_tcgi".';
+console.error('Error:',error);
+}
+});
+</script>
+</body>
+</html>
